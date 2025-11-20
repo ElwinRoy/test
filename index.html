@@ -86,87 +86,120 @@
       <a-entity light="type: directional; intensity: 1.2" position="2 4 2"></a-entity>
     </a-scene>
 
-    <script>
-      const container = document.getElementById('shoe-container');
-      const status = document.getElementById('markerStatus');
-      const overlay = document.getElementById('descOverlay');
-      const titleEl = document.getElementById('descTitle');
-      const textEl = document.getElementById('descText');
-      let currentModel = null;
-      let locked = false;
-      let savedMatrix = null;
+<script>
+  const container = document.getElementById('shoe-container');
+  const status = document.getElementById('markerStatus');
+  const overlay = document.getElementById('descOverlay');
+  const titleEl = document.getElementById('descTitle');
+  const textEl = document.getElementById('descText');
+  let currentModel = null;
 
-      const scales = { '#shoe1':'0.005 0.005 0.005', '#shoe2':'0.007 0.007 0.007', '#shoe3':'0.7 0.7 0.7' };
-      const offsets = { '#shoe1':'0 0 0', '#shoe2':'0 0 0', '#shoe3':'0 -0.05 0' };
+  const scales = { 
+    '#shoe1': '0.005 0.005 0.005', 
+    '#shoe2': '0.007 0.007 0.007', 
+    '#shoe3': '0.7 0.7 0.7' 
+  };
+  const offsets = { 
+    '#shoe1': '0 0 0', 
+    '#shoe2': '0 0 0', 
+    '#shoe3': '0 -0.05 0' 
+  };
 
-      const descriptions = {
-        casual: { title: "Casual Sneakers", text: "Lightweight and breathable sneakers designed for all-day comfort. Perfect for casual outings, walking, or daily wear. Features cushioned insole and flexible rubber sole." },
-        formal: { title: "Formal Leather Shoes", text: "Premium handcrafted leather shoes with polished finish. Ideal for business meetings, formal events, and office wear. Italian design with memory foam insole for superior comfort." },
-        trek:   { title: "Trekking Boots", text: "Rugged, waterproof trekking boots built for adventure. Features ankle support, anti-slip Vibram sole, and breathable Gore-Tex membrane. Ready for mountains, trails, and rough terrain." }
-      };
+  const descriptions = {
+    casual: { 
+      title: "Casual Sneakers", 
+      text: "Lightweight and breathable sneakers designed for all-day comfort. Perfect for casual outings, walking, or daily wear. Features cushioned insole and flexible rubber sole." 
+    },
+    formal: { 
+      title: "Formal Leather Shoes", 
+      text: "Premium handcrafted leather shoes with polished finish. Ideal for business meetings, formal events, and office wear. Italian design with memory foam insole for superior comfort." 
+    },
+    trek: { 
+      title: "Trekking Boots", 
+      text: "Rugged, waterproof trekking boots built for adventure. Features ankle support, anti-slip Vibram sole, and breathable Gore-Tex membrane. Ready for mountains, trails, and rough terrain." 
+    }
+  };
 
-      function loadModel(id) {
-        if (currentModel) container.removeChild(currentModel);
-        const model = document.createElement('a-entity');
-        model.setAttribute('gltf-model', id);
-        model.setAttribute('scale', scales[id]);
-        model.setAttribute('position', offsets[id]);
-        model.setAttribute('rotation', '180 90 0');
-        container.appendChild(model);
-        currentModel = model;
+  function loadModel(id) {
+    if (currentModel) container.removeChild(currentModel);
+    const model = document.createElement('a-entity');
+    model.setAttribute('gltf-model', id);
+    model.setAttribute('scale', scales[id]);
+    model.setAttribute('position', offsets[id]);
+    model.setAttribute('rotation', '180 90 0');
+    model.setAttribute('animation-mixer', '');
+    container.appendChild(model);
+    currentModel = model;
+  }
+
+
+  document.querySelectorAll('.shoe-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.shoe-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadModel(btn.dataset.model);
+    });
+  });
+
+  document.querySelectorAll('.info-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const desc = descriptions[btn.dataset.desc];
+      titleEl.textContent = desc.title;
+      textEl.textContent = desc.text;
+      overlay.classList.add('active');
+    });
+  });
+
+  document.getElementById('closeDesc').addEventListener('click', () => {
+    overlay.classList.remove('active');
+  });
+  document.querySelector('a-scene').addEventListener('arReady', () => {
+    loadModel('#shoe1');
+  });
+
+  const anchor = document.querySelector('a-entity[mindar-image-target]');
+  const sceneEl = document.querySelector('a-scene');
+
+  let targetMatrix = new THREE.Matrix4();
+
+  sceneEl.addEventListener('targetFound', () => {
+    status.textContent = "Target Found – Smooth";
+    status.classList.add('found');
+    anchor.object3D.visible = true;
+  });
+
+  sceneEl.addEventListener('targetLost', () => {
+    status.textContent = "Target Lost";
+    status.classList.remove('found');
+    anchor.object3D.visible = false;
+  });
+
+  // Main smooth-follow loop
+  document.querySelector('a-scene').addEventListener('renderstart', () => {
+    const currentMatrix = new THREE.Matrix4();
+
+    const tick = () => {
+      if (anchor.components['mindar-image-target']?.isFound?.()) {
+        targetMatrix.copy(anchor.object3D.matrixWorld);
       }
 
-      document.querySelectorAll('.shoe-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.shoe-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          loadModel(btn.dataset.model);
-        });
-      });
+      const lerpAmount = 1.85 ;
 
-      document.querySelectorAll('.info-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const desc = descriptions[btn.dataset.desc];
-          titleEl.textContent = desc.title;
-          textEl.textContent = desc.text;
-          overlay.classList.add('active');
-        });
-      });
+      currentMatrix.copy(anchor.object3D.matrixWorld);
+      currentMatrix.lerp(targetMatrix, lerpAmount);
 
-      document.getElementById('closeDesc').addEventListener('click', () => {
-        overlay.classList.remove('active');
-      });
+      anchor.object3D.matrixWorld.copy(currentMatrix);
+      anchor.object3D.matrixWorld.decompose(
+        anchor.object3D.position,
+        anchor.object3D.quaternion,
+        anchor.object3D.scale
+      );
 
-      document.querySelector('a-scene').addEventListener('arReady', () => loadModel('#shoe1'));
-      const anchor = document.querySelector('a-entity[mindar-image-target]');
-      const sceneEl = document.querySelector('a-scene');
+      requestAnimationFrame(tick);
+    };
+    tick();
+  });
 
-      sceneEl.addEventListener('targetFound', () => {
-        if (!locked) {
-          savedMatrix = Object.assign({}, anchor.object3D.matrixWorld);
-          locked = true;
-        }
-        status.textContent = "Locked – Rock Solid";
-        status.classList.add('found');
-        anchor.object3D.visible = true;
-      });
-
-      sceneEl.addEventListener('targetLost', () => {
-        status.textContent = "Target Lost";
-        status.classList.remove('found');
-        anchor.object3D.visible = false;
-      });
-
-      document.querySelector('a-scene').addEventListener('renderstart', () => {
-        const tick = () => {
-          if (locked && savedMatrix) {
-            anchor.object3D.matrixWorld.copy(savedMatrix);
-            anchor.object3D.matrixWorld.decompose(anchor.object3D.position, anchor.object3D.quaternion, anchor.object3D.scale);
-          }
-          requestAnimationFrame(tick);
-        };
-        tick();
-      });
-    </script>
+</script>
   </body>
 </html>
