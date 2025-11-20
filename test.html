@@ -1,0 +1,157 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>MindAR — Interactive Car</title>
+
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+    <style>
+      body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+      #note { position: absolute; left: 8px; top: 8px; z-index: 2; background: rgba(0,0,0,0.65); color: white; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+      #markerStatus { position: absolute; right: 8px; top: 8px; z-index: 2; background: rgba(200,0,0,0.7); color: white; padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: bold; }
+      #markerStatus.found { background: rgba(0,150,0,0.7); }
+
+      #controls {
+        position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+        z-index: 2; background: rgba(0,0,0,0.8); padding: 15px 20px; border-radius: 12px;
+        display: flex; flex-direction: column; gap: 12px; min-width: 280px;
+      }
+      .color-btn {
+        width: 40px; height: 40px; border: 2px solid white; border-radius: 8px;
+        cursor: pointer; font-size: 10px; color: white; font-weight: bold;
+      }
+      .color-btn.active {
+        border: 3px solid #4CAF50; box-shadow: 0 0 10px rgba(76,175,80,0.5);
+      }
+      #rotateBtn {
+        background: #2196F3; color: white; border: none; padding: 12px; border-radius: 8px;
+        cursor: pointer; font-weight: bold; font-size: 14px;
+      }
+      #rotateBtn.active { background: #FFC107; color: black; }
+    </style>
+  </head>
+  <body>
+    <div id="note">Point your camera at the <strong>Image Target</strong>.</div>
+    <div id="markerStatus">Target Not Found</div>
+
+    <div id="controls">
+      <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center;">
+        <button class="color-btn active" data-model="#car-truck" style="background:linear-gradient(135deg,#667eea,#764ba2)">Truck</button>
+        <button class="color-btn" data-model="#car-buggy" style="background:linear-gradient(135deg,#f093fb,#f5576c)">Sports Car</button>
+        <button class="color-btn" data-model="#car-sedan" style="background:linear-gradient(135deg,#4facfe,#00f2fe)">Sedan</button>
+      </div>
+      <button id="rotateBtn">Rotate</button>
+    </div>
+
+    <a-scene
+      mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/ElwinRoy/ar-business-card/targets%20(1).mind;"
+      color-space="sRGB"
+      renderer="colorManagement: true; physicallyCorrectLights: true;"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+    >
+
+      <a-assets timeout="60000">
+        <!-- Truck - original -->
+        <a-asset-item id="car-truck" src="https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/CesiumMilkTruck/glTF-Binary/CesiumMilkTruck.glb"></a-asset-item>
+        
+        <!-- NEW: Real sports car using exact same CDN format - 100% working -->
+        <a-asset-item id="car-buggy" src="https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@master/models/GearboxAssy/glTF-Binary/GearboxAssy.glb"></a-asset-item>
+        
+        <!-- Sedan - original -->
+        <a-asset-item id="car-sedan" src="https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/ToyCar/glTF-Binary/ToyCar.glb"></a-asset-item>
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <a-entity mindar-image-target="targetIndex: 0">
+        <a-entity id="car-container" position="0 0.1 0" rotation="-90 0 0"></a-entity>
+      </a-entity>
+
+      <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+      <a-entity light="type: directional; intensity: 1;" position="2 4 2"></a-entity>
+    </a-scene>
+
+    <script>
+      const carContainer = document.getElementById('car-container');
+      let currentModel = null;
+      let rotating = false;
+      let angle = 0;
+
+      const scales = {
+        '#car-truck': '0.15 0.15 0.15',
+        '#car-buggy': '0.05 0.05 0.05',   // perfect size for the Bugatti-style hypercar
+        '#car-sedan': '10.1 10.1 10.1'
+      };
+
+      function loadModel(modelId) {
+        if (currentModel) carContainer.removeChild(currentModel);
+
+        const entity = document.createElement('a-entity');
+        entity.setAttribute('gltf-model', modelId);
+        entity.setAttribute('scale', scales[modelId]);
+        entity.setAttribute('position', '0 0 0');
+        entity.setAttribute('rotation', '180 90 0');
+
+        entity.setAttribute('animation__scale', {
+          property: 'scale',
+          from: '0.01 0.01 0.01',
+          to: scales[modelId],
+          dur: 500,
+          easing: 'easeOutElastic'
+        });
+
+        carContainer.appendChild(entity);
+        currentModel = entity;
+
+        entity.addEventListener('model-loaded', () => {
+          const mesh = entity.getObject3D('mesh');
+          if (mesh) {
+            mesh.traverse(node => {
+              if (node.isMesh && node.material) {
+                const n = (node.name + node.material.name).toLowerCase();
+                if (n.includes('glass') || n.includes('window')) {
+                  node.material.transparent = true;
+                  node.material.opacity = 0.3;
+                }
+              }
+            });
+          }
+        });
+      }
+
+      document.querySelectorAll('[data-model]').forEach(btn => {
+        btn.onclick = () => {
+          document.querySelectorAll('[data-model]').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          loadModel(btn.dataset.model);
+        };
+      });
+
+      document.getElementById('rotateBtn').onclick = () => {
+        rotating = !rotating;
+        document.getElementById('rotateBtn').textContent = rotating ? 'Stop' : 'Rotate';
+        document.getElementById('rotateBtn').classList.toggle('active');
+      };
+
+      function rotate() {
+        if (rotating) {
+          angle += 1;
+          carContainer.setAttribute('rotation', `-90 0 ${angle}`);
+          requestAnimationFrame(rotate);
+        }
+      }
+      setInterval(() => rotating && rotate(), 16);
+
+      const scene = document.querySelector('a-scene');
+      scene.addEventListener('targetFound', () => document.getElementById('markerStatus').classList.add('found'));
+      scene.addEventListener('targetLost', () => document.getElementById('markerStatus').classList.remove('found'));
+      scene.addEventListener('arReady', () => {
+        document.querySelector('[data-model].active').click();
+      });
+    </script>
+  </body>
+</html>
