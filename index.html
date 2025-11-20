@@ -104,89 +104,75 @@
       <a-entity light="type: directional; intensity: 1.2;" position="1 3 2"></a-entity>
     </a-scene>
 
-   <script>
+<script>
   const container = document.getElementById('car-container');
   let currentModel = null;
-  let anchorFrozen = false;
+  let locked = false;
+  let frozenMatrix = null;
 
-  const scales = {
-    '#shoe1': '0.005 0.005 0.005',
-    '#shoe2': '0.007 0.007 0.007',
-    '#shoe3': '0.7 0.7 0.7'
-  };
+  const scales = { '#shoe1': '0.005 0.005 0.005', '#shoe2': '0.007 0.007 0.007', '#shoe3': '0.7 0.7 0.7' };
+  const yOffset = { '#shoe1': '0 0 0', '#shoe2': '0 0 0', '#shoe3': '0 -0.05 0' };
 
-  const positions = {
-    '#shoe1': '0 0 0',
-    '#shoe2': '0 0 0',
-    '#shoe3': '0 -0.05 0'
-  };
-
-  const modelInfo = {
-    shoe1: { title: "Casuals", text: "Comfortable everyday sneakers" },
-    shoe2: { title: "Formals", text: "Elegant leather dress shoes" },
-    shoe3: { title: "Trekking", text: "Rugged outdoor trekking boots" }
-  };
-
-  function loadModel(modelId) {
+  function loadModel(id) {
     if (currentModel) container.removeChild(currentModel);
-
-    const entity = document.createElement('a-entity');
-    entity.setAttribute('gltf-model', modelId);
-    entity.setAttribute('scale', scales[modelId]);
-    entity.setAttribute('position', positions[modelId] || '0 0 0');
-    entity.setAttribute('rotation', '180 90 0');
-    entity.setAttribute('animation-mixer', '');
-    container.appendChild(entity);
-    currentModel = entity;
+    const e = document.createElement('a-entity');
+    e.setAttribute('gltf-model', id);
+    e.setAttribute('scale', scales[id]);
+    e.setAttribute('position', yOffset[id]);
+    e.setAttribute('rotation', '180 90 0');
+    container.appendChild(e);
+    currentModel = e;
   }
 
-  document.querySelectorAll('[data-model]').forEach(btn => {
-    btn.onclick = () => {
-      document.querySelectorAll('[data-model]').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      loadModel(btn.dataset.model);
-    };
+  document.querySelectorAll('[data-model]').forEach(b => b.onclick = () => {
+    document.querySelectorAll('[data-model]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); loadModel(b.dataset.model);
   });
-
-  document.querySelectorAll('[data-info]').forEach(btn => {
-    btn.onclick = () => {
-      const key = btn.dataset.info;
-      document.getElementById('infoTitle').textContent = modelInfo[key].title;
-      document.getElementById('infoText').textContent = modelInfo[key].text;
-      document.getElementById('infoOverlay').classList.add('active');
-    };
+  document.querySelectorAll('[data-info]').forEach(b => b.onclick = () => {
+    const k = b.dataset.info;
+    document.getElementById('infoTitle').textContent = k === 'shoe1' ? 'Casuals' : k === 'shoe2' ? 'Formals' : 'Trekking';
+    document.getElementById('infoText').textContent = k === 'shoe1' ? 'Comfortable everyday sneakers' : k === 'shoe2' ? 'Elegant leather dress shoes' : 'Rugged outdoor trekking boots';
+    document.getElementById('infoOverlay').classList.add('active');
   });
+  document.getElementById('closeInfo').onclick = () => document.getElementById('infoOverlay').classList.remove('active');
 
-  document.getElementById('closeInfo').onclick = () => {
-    document.getElementById('infoOverlay').classList.remove('active');
-  };
+  const sceneEl = document.querySelector('a-scene');
+  const anchor = document.querySelector('a-entity[mindar-image-target]');
 
-  const scene = document.querySelector('a-scene');
-  const anchorEntity = document.querySelector('a-entity[mindar-image-target]');
+  sceneEl.addEventListener('arReady', () => document.querySelector('[data-model].active').click());
 
-  scene.addEventListener('arReady', () => {
-    document.querySelector('[data-model].active').click();
-  });
-
-  scene.addEventListener('targetFound', () => {
+  sceneEl.addEventListener('targetFound', () => {
     document.getElementById('markerStatus').classList.add('found');
-    document.getElementById('markerStatus').textContent = "Target Found";
+    document.getElementById('markerStatus').textContent = "Locked – target found";
 
-    if (!anchorFrozen) {
-      anchorEntity.pause();
-      const mindarSystem = scene.systems['mindar-image-system'];
-      if (mindarSystem && mindarSystem.stopTracking) {
-        mindarSystem.stopTracking();  
-      }
+    if (!locked) {
+      frozenMatrix = anchor.object3D.matrixWorld.clone();
+      anchor.removeAttribute('mindar-image-target');
+      anchor.object3D.visible = true;
+      const freeze = () => {
+        if (locked && frozenMatrix) {
+          anchor.object3D.matrixWorld.copy(frozenMatrix);
+          anchor.object3D.matrixWorld.decompose(
+            anchor.object3D.position,
+            anchor.object3D.quaternion,
+            anchor.object3D.scale
+          );
+        }
+        requestAnimationFrame(freeze);
+      };
+      freeze();
 
-      anchorFrozen = true;
+      locked = true;
     }
   });
 
-  scene.addEventListener('targetLost', () => {
+  sceneEl.addEventListener('targetLost', () => {
     document.getElementById('markerStatus').classList.remove('found');
-    document.getElementById('markerStatus').textContent = "Target Not Found";
-    anchorFrozen = false;
+    document.getElementById('markerStatus').textContent = "Target Lost – Will relock";
+    locked = false;
+    frozenMatrix = null;
+
+    anchor.setAttribute('mindar-image-target', 'targetIndex: 0');
   });
 </script>
   </body>
