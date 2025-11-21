@@ -3,9 +3,11 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MindAR — AR Shoes with Description</title>
+    <title>MindAR — AR Shoes with Description (Markerless After Detect)</title>
+
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
     <style>
       body { margin:0; overflow:hidden; background:#000; font-family:Arial, sans-serif; }
       #note, #markerStatus {
@@ -30,6 +32,7 @@
         width:38px; height:38px; background:rgba(255,255,255,0.3); border:2px solid white;
         border-radius:50%; cursor:pointer; font-size:22px; display:flex; align-items:center; justify-content:center;
       }
+
       #descOverlay {
         position:absolute; inset:0; background:rgba(0,0,0,0.95); color:white; z-index:100;
         display:none; flex-direction:column; justify-content:center; align-items:center; padding:20px; text-align:center;
@@ -40,69 +43,90 @@
       #closeDesc { margin-top:30px; padding:14px 40px; background:#4CAF50; border:none; border-radius:10px;
         color:white; font-size:18px; font-weight:bold; cursor:pointer; }
 
-      /* NEW: Move Button */
-      #moveBtn {
-        position:absolute; bottom:100px; left:50%; transform:translateX(-50%); z-index:20;
-        padding:16px 40px; background:#4CAF50; color:white; border:none; border-radius:14px;
-        font-weight:bold; font-size:17px; cursor:pointer; display:none;
-        box-shadow:0 6px 20px rgba(0,0,0,0.6);
+      /* drag layer sits above the scene to capture pointer events for dragging */
+      #dragLayer {
+        position:absolute; inset:0; z-index:50; touch-action: none; /* disable default gestures interfering */
       }
-      #moveBtn.active { background:#FF5722; }
     </style>
   </head>
   <body>
+
     <div id="note">Point camera at the marker</div>
     <div id="markerStatus">Target Not Found</div>
 
     <div id="controls">
       <button class="shoe-btn active" data-model="#shoe1">Casuals</button>
       <button class="info-btn" data-desc="casual">i</button>
+
       <button class="shoe-btn" data-model="#shoe2">Formals</button>
       <button class="info-btn" data-desc="formal">i</button>
+
       <button class="shoe-btn" data-model="#shoe3">Trekking</button>
       <button class="info-btn" data-desc="trek">i</button>
     </div>
-
-    <!-- NEW: Move Button -->
-    <button id="moveBtn">Move Shoe</button>
 
     <div id="descOverlay">
       <h2 id="descTitle">Casual Sneakers</h2>
       <p id="descText">Lightweight and breathable sneakers designed for all-day comfort. Perfect for casual outings, walking, or daily wear. Features cushioned insole and flexible rubber sole.</p>
       <button id="closeDesc">Close</button>
     </div>
+    <div id="dragLayer"></div>
 
     <a-scene
       mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/ElwinRoy/ar-business-card/targets%20(1).mind; filterMinCF:0.0001; filterBeta:0.001;"
       color-space="sRGB" renderer="colorManagement: true" vr-mode-ui="enabled: false">
+
       <a-assets timeout="60000">
         <a-asset-item id="shoe1" src="https://raw.githubusercontent.com/ElwinRoy/test/main/Shoe%2001%20(1).glb"></a-asset-item>
         <a-asset-item id="shoe2" src="https://raw.githubusercontent.com/ElwinRoy/test/main/Shoe%2002%20(1).glb"></a-asset-item>
         <a-asset-item id="shoe3" src="https://raw.githubusercontent.com/ElwinRoy/test/main/Shoe%2003%20(1).glb"></a-asset-item>
       </a-assets>
+
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
       <a-entity mindar-image-target="targetIndex: 0">
         <a-entity id="shoe-container" position="0 0.1 0" rotation="-90 0 0"></a-entity>
       </a-entity>
+
       <a-entity light="type: ambient; intensity: 0.8"></a-entity>
       <a-entity light="type: directional; intensity: 1.2" position="2 4 2"></a-entity>
     </a-scene>
 
 <script>
-  const container = document.getElementById('shoe-container');
+  // === preserved originals + additions for markerless (detach after first detection) ===
+  const container = document.getElementById('shoe-container');      // <a-entity> that holds the gltf model (DOM)
   const status = document.getElementById('markerStatus');
   const overlay = document.getElementById('descOverlay');
   const titleEl = document.getElementById('descTitle');
   const textEl = document.getElementById('descText');
-  const moveBtn = document.getElementById('moveBtn');
+  const dragLayer = document.getElementById('dragLayer');
+
   let currentModel = null;
 
-  const scales = { '#shoe1': '0.005 0.005 0.005', '#shoe2': '0.007 0.007 0.007', '#shoe3': '0.7 0.7 0.7' };
-  const offsets = { '#shoe1': '0 0 0', '#shoe2': '0 0 0', '#shoe3': '0 -0.05 0' };
+  const scales = {
+    '#shoe1': '0.005 0.005 0.005',
+    '#shoe2': '0.007 0.007 0.007',
+    '#shoe3': '0.7 0.7 0.7'
+  };
+  const offsets = {
+    '#shoe1': '0 0 0',
+    '#shoe2': '0 0 0',
+    '#shoe3': '0 -0.05 0'
+  };
+
   const descriptions = {
-    casual: { title: "Casual Sneakers", text: "Lightweight and breathable..." },
-    formal: { title: "Formal Leather Shoes", text: "Premium handcrafted..." },
-    trek:   { title: "Trekking Boots", text: "Rugged, waterproof..." }
+    casual: {
+      title: "Casual Sneakers",
+      text: "Lightweight and breathable sneakers designed for all-day comfort. Perfect for casual outings, walking, or daily wear. Features cushioned insole and flexible rubber sole."
+    },
+    formal: {
+      title: "Formal Leather Shoes",
+      text: "Premium handcrafted leather shoes with polished finish. Ideal for business meetings, formal events, and office wear. Italian design with memory foam insole for superior comfort."
+    },
+    trek: {
+      title: "Trekking Boots",
+      text: "Rugged, waterproof trekking boots built for adventure. Features ankle support, anti-slip Vibram sole, and breathable Gore-Tex membrane. Ready for mountains, trails, and rough terrain."
+    }
   };
 
   function loadModel(id) {
@@ -117,6 +141,7 @@
     currentModel = model;
   }
 
+  // Buttons (unchanged)
   document.querySelectorAll('.shoe-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.shoe-btn').forEach(b => b.classList.remove('active'));
@@ -138,92 +163,180 @@
     overlay.classList.remove('active');
   });
 
+  // Load first model when AR is ready
   document.querySelector('a-scene').addEventListener('arReady', () => {
     loadModel('#shoe1');
   });
 
+  // anchor and scene references
   const anchor = document.querySelector('a-entity[mindar-image-target]');
   const sceneEl = document.querySelector('a-scene');
-  let isFirstFound = false;
-  let permanentMatrix = null;
-  let moveMode = false;
 
-  // Show move button after first detection
+  // ========== Markerless / drag variables ==========
+  let markerLocked = false;     // becomes true after first successful detection (we detach)
+  let freeContainer = null;     // THREE.Object3D container that holds the model after detach
+  let isDragging = false;
+  let dragOffset = new THREE.Vector3(); // offset between hit point and freeContainer.position
+  const groundPlaneY = 0;       // horizontal plane Y coordinate to place the model on (adjustable)
+
+  // ========== Preserve and smooth follow (but stop when locked) ==========
+  let targetMatrix = new THREE.Matrix4();
+
   sceneEl.addEventListener('targetFound', () => {
-    if (!isFirstFound) {
-      status.textContent = "Unlocked! You can move the shoe";
+    // If not yet locked to world, use first successful detection to create "detached" object
+    if (!markerLocked) {
+      status.textContent = "Target Found – Model Unlocked";
       status.classList.add('found');
-      isFirstFound = true;
-      moveBtn.style.display = 'block';
+
+      markerLocked = true;
+
+      // Ensure world matrices are updated
+      anchor.object3D.updateMatrixWorld(true);
+
+      // Decompose the anchor's world matrix to position the freeContainer correctly
+      const pos = new THREE.Vector3();
+      const quat = new THREE.Quaternion();
+      const scale = new THREE.Vector3();
+
+      anchor.object3D.matrixWorld.decompose(pos, quat, scale);
+
+      // Create a new independent Object3D (freeContainer) and add it to the scene root
+      freeContainer = new THREE.Object3D();
+      freeContainer.position.copy(pos);
+      freeContainer.quaternion.copy(quat);
+      freeContainer.scale.copy(scale);
+
+      // Add the freeContainer to the scene (so it's independent of the anchor)
+      sceneEl.object3D.add(freeContainer);
+
+      // Move the A-Frame DOM-model (container) under the freeContainer in the three.js scene graph
+      // container is the <a-entity> DOM node; container.object3D is its three.js object
+      // We must preserve transform of the DOM entity; using add will reparent it under freeContainer
+      freeContainer.add(container.object3D);
+
+      // hide the original anchor since model is now independent
+      anchor.object3D.visible = false;
+
+      // expose to window for debugging if needed
+      window.freeContainer = freeContainer;
     }
   });
 
-  // Move button toggle
-  moveBtn.onclick = () => {
-    moveMode = !moveMode;
-    moveBtn.classList.toggle('active');
-    moveBtn.textContent = moveMode ? "Tap floor to place" : "Move Shoe";
-  };
-
-  // Tap to move on floor
-  sceneEl.addEventListener('click', (e) => {
-    if (!moveMode || !isFirstFound) return;
-
-    const camera = sceneEl.camera;
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2(
-      (e.clientX / window.innerWidth) * 2 - 1,
-      -(e.clientY / window.innerHeight) * 2 + 1
-    );
-    raycaster.setFromCamera(mouse, camera);
-
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    const point = new THREE.Vector3();
-    if (raycaster.ray.intersectPlane(plane, point)) {
-      anchor.object3D.position.set(point.x, 0.1, point.z);
-      permanentMatrix = anchor.object3D.matrixWorld.clone();
+  sceneEl.addEventListener('targetLost', () => {
+    // Only show "lost" status while still relying on marker
+    if (!markerLocked) {
+      status.textContent = "Target Lost — Point at Marker";
+      status.classList.remove('found');
+      anchor.object3D.visible = false;
     }
-
-    moveMode = false;
-    moveBtn.classList.remove('active');
-    moveBtn.textContent = "Move Shoe";
   });
 
-  // Main tracking loop - lock forever after first detection
+  // Main smooth-follow loop — only runs while we still depend on the marker
   document.querySelector('a-scene').addEventListener('renderstart', () => {
+    const currentMatrix = new THREE.Matrix4();
+
     const tick = () => {
-      const comp = anchor.components['mindar-image-target'];
-
-      if (isFirstFound && permanentMatrix) {
-        // Frozen forever
-        anchor.object3D.matrixWorld.copy(permanentMatrix);
-        anchor.object3D.visible = true;
-      }
-      else if (comp?.isFound?.()) {
-        // Smooth tracking while visible
-        const current = anchor.object3D.matrixWorld;
-        const target = comp.getSmoothedMatrix?.() || current;
-        current.lerp(target, 0.08);
-
-        if (!isFirstFound) {
-          permanentMatrix = current.clone();
-          isFirstFound = true;
-        }
-      }
-      else {
-        if (!isFirstFound) anchor.object3D.visible = false;
+      // If we haven't locked to world yet and anchor is found, copy target matrix
+      if (!markerLocked && anchor.components['mindar-image-target']?.isFound?.()) {
+        targetMatrix.copy(anchor.object3D.matrixWorld);
       }
 
-      anchor.object3D.matrixWorld.decompose(
-        anchor.object3D.position,
-        anchor.object3D.quaternion,
-        anchor.object3D.scale
-      );
+      // Keep smoothing only while not locked. after lock, freeContainer handles position.
+      if (!markerLocked) {
+        currentMatrix.copy(anchor.object3D.matrixWorld);
+        // use a reasonable lerp amount (0..1) for smoothing. Keep behaviour similar but sensible.
+        const lerpAmount = 0.15;
+        currentMatrix.lerp(targetMatrix, lerpAmount);
+
+        anchor.object3D.matrixWorld.copy(currentMatrix);
+        anchor.object3D.matrixWorld.decompose(
+          anchor.object3D.position,
+          anchor.object3D.quaternion,
+          anchor.object3D.scale
+        );
+      }
 
       requestAnimationFrame(tick);
     };
     tick();
   });
+
+  // =================== Dragging: screen -> world (raycast to horizontal plane) ===================
+  // Convert screen coordinates to a point on a horizontal plane (y = groundPlaneY)
+  function screenToWorldOnPlane(clientX, clientY) {
+    const cameraEl = document.querySelector('a-camera');
+    const camera = cameraEl && cameraEl.object3D;
+    if (!camera) return null;
+
+    const mouse = new THREE.Vector2(
+      (clientX / window.innerWidth) * 2 - 1,
+      -(clientY / window.innerHeight) * 2 + 1
+    );
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -groundPlaneY); // y = groundPlaneY
+    const point = new THREE.Vector3();
+    const intersects = raycaster.ray.intersectPlane(plane, point);
+    if (intersects) return point;
+    return null;
+  }
+
+  // Pointer handlers on dragLayer
+  dragLayer.addEventListener('pointerdown', (ev) => {
+    // Only start dragging if we've detached (markerLocked) and freeContainer exists
+    if (!markerLocked || !freeContainer) return;
+
+    // prevent default behavior (scroll, pinch)
+    ev.preventDefault();
+
+    const p = screenToWorldOnPlane(ev.clientX, ev.clientY);
+    if (!p) return;
+
+    // calculate offset: freeContainer.position - hit point
+    dragOffset.copy(freeContainer.position).sub(p);
+    isDragging = true;
+  }, { passive: false });
+
+  dragLayer.addEventListener('pointermove', (ev) => {
+    if (!isDragging || !markerLocked || !freeContainer) return;
+    ev.preventDefault();
+
+    const p = screenToWorldOnPlane(ev.clientX, ev.clientY);
+    if (!p) return;
+
+    // newPosition = hitPoint + offset
+    freeContainer.position.copy(p).add(dragOffset);
+  }, { passive: false });
+
+  const endDrag = (ev) => {
+    if (!markerLocked) return;
+    isDragging = false;
+  };
+
+  dragLayer.addEventListener('pointerup', endDrag);
+  dragLayer.addEventListener('pointercancel', endDrag);
+  dragLayer.addEventListener('pointerleave', endDrag);
+
+  // Optional: single-tap to re-center model under tap (while unlocked)
+  dragLayer.addEventListener('click', (ev) => {
+    if (!markerLocked || !freeContainer) return;
+    // if not dragging (quick tap), reposition to that point but keep Y offset
+    if (!isDragging) {
+      const p = screenToWorldOnPlane(ev.clientX, ev.clientY);
+      if (!p) return;
+      freeContainer.position.copy(p);
+    }
+  });
+
+  // Prevent touch gestures from zooming the page on mobile
+  window.addEventListener('touchmove', e => {
+    if (isDragging) e.preventDefault();
+  }, { passive: false });
+
+  // Done.
 </script>
+
   </body>
 </html>
