@@ -4,10 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MindAR — AR Shoes with Description</title>
-
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-
     <style>
       body { margin:0; overflow:hidden; background:#000; font-family:Arial, sans-serif; }
       #note, #markerStatus {
@@ -32,7 +30,6 @@
         width:38px; height:38px; background:rgba(255,255,255,0.3); border:2px solid white;
         border-radius:50%; cursor:pointer; font-size:22px; display:flex; align-items:center; justify-content:center;
       }
-
       #descOverlay {
         position:absolute; inset:0; background:rgba(0,0,0,0.95); color:white; z-index:100;
         display:none; flex-direction:column; justify-content:center; align-items:center; padding:20px; text-align:center;
@@ -42,23 +39,32 @@
       #descOverlay p { font-size:18px; line-height:1.6; max-width:90%; margin:15px 0; }
       #closeDesc { margin-top:30px; padding:14px 40px; background:#4CAF50; border:none; border-radius:10px;
         color:white; font-size:18px; font-weight:bold; cursor:pointer; }
+
+      /* NEW: Move Button */
+      #moveBtn {
+        position:absolute; bottom:100px; left:50%; transform:translateX(-50%); z-index:20;
+        padding:16px 40px; background:#4CAF50; color:white; border:none; border-radius:14px;
+        font-weight:bold; font-size:17px; cursor:pointer; display:none;
+        box-shadow:0 6px 20px rgba(0,0,0,0.6);
+      }
+      #moveBtn.active { background:#FF5722; }
     </style>
   </head>
   <body>
-
     <div id="note">Point camera at the marker</div>
     <div id="markerStatus">Target Not Found</div>
 
     <div id="controls">
       <button class="shoe-btn active" data-model="#shoe1">Casuals</button>
       <button class="info-btn" data-desc="casual">i</button>
-
       <button class="shoe-btn" data-model="#shoe2">Formals</button>
       <button class="info-btn" data-desc="formal">i</button>
-
       <button class="shoe-btn" data-model="#shoe3">Trekking</button>
       <button class="info-btn" data-desc="trek">i</button>
     </div>
+
+    <!-- NEW: Move Button -->
+    <button id="moveBtn">Move Shoe</button>
 
     <div id="descOverlay">
       <h2 id="descTitle">Casual Sneakers</h2>
@@ -69,19 +75,15 @@
     <a-scene
       mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/ElwinRoy/ar-business-card/targets%20(1).mind; filterMinCF:0.0001; filterBeta:0.001;"
       color-space="sRGB" renderer="colorManagement: true" vr-mode-ui="enabled: false">
-
       <a-assets timeout="60000">
         <a-asset-item id="shoe1" src="https://raw.githubusercontent.com/ElwinRoy/test/main/Shoe%2001%20(1).glb"></a-asset-item>
         <a-asset-item id="shoe2" src="https://raw.githubusercontent.com/ElwinRoy/test/main/Shoe%2002%20(1).glb"></a-asset-item>
         <a-asset-item id="shoe3" src="https://raw.githubusercontent.com/ElwinRoy/test/main/Shoe%2003%20(1).glb"></a-asset-item>
       </a-assets>
-
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
       <a-entity mindar-image-target="targetIndex: 0">
         <a-entity id="shoe-container" position="0 0.1 0" rotation="-90 0 0"></a-entity>
       </a-entity>
-
       <a-entity light="type: ambient; intensity: 0.8"></a-entity>
       <a-entity light="type: directional; intensity: 1.2" position="2 4 2"></a-entity>
     </a-scene>
@@ -92,32 +94,15 @@
   const overlay = document.getElementById('descOverlay');
   const titleEl = document.getElementById('descTitle');
   const textEl = document.getElementById('descText');
+  const moveBtn = document.getElementById('moveBtn');
   let currentModel = null;
 
-  const scales = { 
-    '#shoe1': '0.005 0.005 0.005', 
-    '#shoe2': '0.007 0.007 0.007', 
-    '#shoe3': '0.7 0.7 0.7' 
-  };
-  const offsets = { 
-    '#shoe1': '0 0 0', 
-    '#shoe2': '0 0 0', 
-    '#shoe3': '0 -0.05 0' 
-  };
-
+  const scales = { '#shoe1': '0.005 0.005 0.005', '#shoe2': '0.007 0.007 0.007', '#shoe3': '0.7 0.7 0.7' };
+  const offsets = { '#shoe1': '0 0 0', '#shoe2': '0 0 0', '#shoe3': '0 -0.05 0' };
   const descriptions = {
-    casual: { 
-      title: "Casual Sneakers", 
-      text: "Lightweight and breathable sneakers designed for all-day comfort. Perfect for casual outings, walking, or daily wear. Features cushioned insole and flexible rubber sole." 
-    },
-    formal: { 
-      title: "Formal Leather Shoes", 
-      text: "Premium handcrafted leather shoes with polished finish. Ideal for business meetings, formal events, and office wear. Italian design with memory foam insole for superior comfort." 
-    },
-    trek: { 
-      title: "Trekking Boots", 
-      text: "Rugged, waterproof trekking boots built for adventure. Features ankle support, anti-slip Vibram sole, and breathable Gore-Tex membrane. Ready for mountains, trails, and rough terrain." 
-    }
+    casual: { title: "Casual Sneakers", text: "Lightweight and breathable..." },
+    formal: { title: "Formal Leather Shoes", text: "Premium handcrafted..." },
+    trek:   { title: "Trekking Boots", text: "Rugged, waterproof..." }
   };
 
   function loadModel(id) {
@@ -131,7 +116,6 @@
     container.appendChild(model);
     currentModel = model;
   }
-
 
   document.querySelectorAll('.shoe-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -153,42 +137,83 @@
   document.getElementById('closeDesc').addEventListener('click', () => {
     overlay.classList.remove('active');
   });
+
   document.querySelector('a-scene').addEventListener('arReady', () => {
     loadModel('#shoe1');
   });
 
   const anchor = document.querySelector('a-entity[mindar-image-target]');
   const sceneEl = document.querySelector('a-scene');
+  let isFirstFound = false;
+  let permanentMatrix = null;
+  let moveMode = false;
 
-  let targetMatrix = new THREE.Matrix4();
-
+  // Show move button after first detection
   sceneEl.addEventListener('targetFound', () => {
-    status.textContent = "Target Found – Smooth";
-    status.classList.add('found');
-    anchor.object3D.visible = true;
+    if (!isFirstFound) {
+      status.textContent = "Unlocked! You can move the shoe";
+      status.classList.add('found');
+      isFirstFound = true;
+      moveBtn.style.display = 'block';
+    }
   });
 
-  sceneEl.addEventListener('targetLost', () => {
-    status.textContent = "Target Lost";
-    status.classList.remove('found');
-    anchor.object3D.visible = false;
+  // Move button toggle
+  moveBtn.onclick = () => {
+    moveMode = !moveMode;
+    moveBtn.classList.toggle('active');
+    moveBtn.textContent = moveMode ? "Tap floor to place" : "Move Shoe";
+  };
+
+  // Tap to move on floor
+  sceneEl.addEventListener('click', (e) => {
+    if (!moveMode || !isFirstFound) return;
+
+    const camera = sceneEl.camera;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2(
+      (e.clientX / window.innerWidth) * 2 - 1,
+      -(e.clientY / window.innerHeight) * 2 + 1
+    );
+    raycaster.setFromCamera(mouse, camera);
+
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const point = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(plane, point)) {
+      anchor.object3D.position.set(point.x, 0.1, point.z);
+      permanentMatrix = anchor.object3D.matrixWorld.clone();
+    }
+
+    moveMode = false;
+    moveBtn.classList.remove('active');
+    moveBtn.textContent = "Move Shoe";
   });
 
-  // Main smooth-follow loop
+  // Main tracking loop - lock forever after first detection
   document.querySelector('a-scene').addEventListener('renderstart', () => {
-    const currentMatrix = new THREE.Matrix4();
-
     const tick = () => {
-      if (anchor.components['mindar-image-target']?.isFound?.()) {
-        targetMatrix.copy(anchor.object3D.matrixWorld);
+      const comp = anchor.components['mindar-image-target'];
+
+      if (isFirstFound && permanentMatrix) {
+        // Frozen forever
+        anchor.object3D.matrixWorld.copy(permanentMatrix);
+        anchor.object3D.visible = true;
+      }
+      else if (comp?.isFound?.()) {
+        // Smooth tracking while visible
+        const current = anchor.object3D.matrixWorld;
+        const target = comp.getSmoothedMatrix?.() || current;
+        current.lerp(target, 0.08);
+
+        if (!isFirstFound) {
+          permanentMatrix = current.clone();
+          isFirstFound = true;
+        }
+      }
+      else {
+        if (!isFirstFound) anchor.object3D.visible = false;
       }
 
-      const lerpAmount = 1.85 ;
-
-      currentMatrix.copy(anchor.object3D.matrixWorld);
-      currentMatrix.lerp(targetMatrix, lerpAmount);
-
-      anchor.object3D.matrixWorld.copy(currentMatrix);
       anchor.object3D.matrixWorld.decompose(
         anchor.object3D.position,
         anchor.object3D.quaternion,
@@ -199,7 +224,6 @@
     };
     tick();
   });
-
 </script>
   </body>
 </html>
